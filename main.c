@@ -55,6 +55,7 @@
 
 #define JOYSTICK_I2C_ADDR 0x52 // adresse du nunchuck 
 extern ARM_DRIVER_I2C Driver_I2C1;
+extern ARM_DRIVER_USART Driver_USART2;
 
 #ifdef RTE_CMSIS_RTOS2_RTX5
 /**
@@ -121,22 +122,37 @@ void write1byte(unsigned char composant, unsigned char registre, unsigned char v
 unsigned char read1byte(unsigned char composant, unsigned char registre)    //Lecture I2C0 (faire pour lire plus de 1 octet)
 	{ 
 		unsigned char data [6];
-		Driver_I2C1.MasterTransmit (composant, &registre, 1, true);		// false = avec stop
+		Driver_I2C1.MasterTransmit (composant, &registre, 1, false);		// false = avec stop
 		while (Driver_I2C1.GetStatus().busy == 1);	// attente fin transmission
-		Driver_I2C1.MasterReceive (composant, data, 6, false);		// false = avec stop
+		Driver_I2C1.MasterReceive (composant, data, 1, false);		// false = avec stop
 		while (Driver_I2C1.GetStatus().busy == 1);	// attente fin transmission
 		return data[0]; 
 		}
 		
-void readnbyte(unsigned char composant, unsigned char registre, unsigned char* variable)    //Lecture I2C0 (faire pour lire plus de 1 octet)
+void readnbyte(unsigned char composant, unsigned char registre, unsigned char* variable, char n)    //Lecture I2C0 (faire pour lire plus de 1 octet)
 	{ 
 		Driver_I2C1.MasterTransmit (composant, &registre, 1, false);		// false = avec stop
 		while (Driver_I2C1.GetStatus().busy == 1);	// attente fin transmission
-		Driver_I2C1.MasterReceive (composant, variable, 6, false);		// false = avec stop
+		Driver_I2C1.MasterReceive (composant, variable, n, false);		// false = avec stop
 		while (Driver_I2C1.GetStatus().busy == 1);	// attente fin transmission
 //		for (i=0;i<6;i++) {
 //			*(variable+i) = data[i]; }
 		}
+
+
+void Init_UART(void){
+	Driver_USART2.Initialize(NULL);
+	Driver_USART2.PowerControl(ARM_POWER_FULL);
+	Driver_USART2.Control(	ARM_USART_MODE_ASYNCHRONOUS |
+							ARM_USART_DATA_BITS_8		|
+							ARM_USART_STOP_BITS_1		|
+							ARM_USART_PARITY_NONE		|
+							ARM_USART_FLOW_CONTROL_NONE,
+							9600);
+	Driver_USART2.Control(ARM_USART_CONTROL_TX,1);
+	Driver_USART2.Control(ARM_USART_CONTROL_RX,1);
+}
+
 
 /* Private functions ---------------------------------------------------------*/
 /**
@@ -146,7 +162,10 @@ void readnbyte(unsigned char composant, unsigned char registre, unsigned char* v
   */
 int main(void)
 {
-unsigned char X[6], Y[6];
+unsigned char X, Y;
+int Yenvoie = 0;
+int Xenvoie = 0;
+
 
   /* STM32F4xx HAL library initialization:
        - Configure the Flash prefetch, Flash preread and Buffer caches
@@ -173,7 +192,7 @@ unsigned char X[6], Y[6];
 	
 	LED_Initialize ();
 	Init_I2C(); 
-
+	Init_UART();
   /* Create thread functions that start executing, 
   Example: osThreadNew(app_main, NULL, NULL); */
 	
@@ -190,8 +209,18 @@ unsigned char X[6], Y[6];
 		
   while (1)
   {	
-		readnbyte(JOYSTICK_I2C_ADDR, 0x00,X);  //lecture X
-		readnbyte(JOYSTICK_I2C_ADDR, 0x01,Y);  // lecture Y
+			X = read1byte(JOYSTICK_I2C_ADDR, 0x00);  //lecture X
+			Y = read1byte(JOYSTICK_I2C_ADDR, 0x01);  // lecture Y
+		
+		
+		
+//			Yenvoie = (Y - 130) * 11.05;
+//			if(Yenvoie <= -1249) Yenvoie = -1249;  //saturation
+//			if(Yenvoie >= 1249) Yenvoie = 1249;
+//			if((Yenvoie<30)&&(Yenvoie>-30)) Yenvoie = 0;
+			
+			while(Driver_USART2.GetStatus().tx_busy == 1); // attente buffer TX vide
+			Driver_USART2.Send(&Y,1);
 	
   }
 }
