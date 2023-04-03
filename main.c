@@ -26,7 +26,7 @@ int main (void)
 	{
 	char message[15] ;
 	char tab[2];
-	char Yrecep;
+	int Yrecep;
 	GLCD_Initialize() ;
 	GLCD_ClearScreen();
 	GLCD_SetFont(&GLCD_Font_16x24) ;
@@ -36,7 +36,12 @@ int main (void)
 		{	
 			Driver_USART1.Receive(tab,1);
 			while(Driver_USART1.GetRxCount()<1);
-			sprintf(message, " %d ",tab[0]) ; //on stocke dans message 
+			Yrecep = tab[0];
+			Yrecep = (Yrecep - 130) * 11.05;
+			if(Yrecep <= -1249) Yrecep = -1249;  //saturation
+			if(Yrecep >= 1249) Yrecep = 1249;
+			if((Yrecep<300)&&(Yrecep>-30)) Yrecep = 0;
+			sprintf(message, " Y = %d ",Yrecep) ; //on stocke dans message 
 			GLCD_DrawString(1,1,(char*)message) ; //colonne, ligne, message
 		}
 	}
