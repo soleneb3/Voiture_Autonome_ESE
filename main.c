@@ -148,7 +148,7 @@ void Init_UART(void){
 							ARM_USART_STOP_BITS_1		|
 							ARM_USART_PARITY_NONE		|
 							ARM_USART_FLOW_CONTROL_NONE,
-							9600);
+							115200);
 	Driver_USART2.Control(ARM_USART_CONTROL_TX,1);
 	Driver_USART2.Control(ARM_USART_CONTROL_RX,1);
 }
