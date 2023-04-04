@@ -105,7 +105,7 @@ static void Error_Handler(void);
 extern ARM_DRIVER_USART Driver_USART2;
 void sendCommand(char cmd, char P1,char P2)
 {
-	int i=0;
+
 	unsigned char tab[10] = {0x7E ,0xFF, 0x06, 0x00,0x00,0x00,0x00,0x00,0x00,0xEF};
 	short checksum=0;
 	
@@ -115,10 +115,42 @@ void sendCommand(char cmd, char P1,char P2)
 	checksum = 0-(tab[1]+tab[2]+tab[3]+tab[4]+tab[5]+tab[6]);
 	tab[7] = ((checksum & 0xFF00) >>8 );
 	tab[8] = checksum & 0x00FF;
+//	LED_On (3);
+//  osDelay(500);
+//	LED_Off (3);
+//  osDelay(500);
+//	LED_On (3);
+//  osDelay(500);
+//	LED_Off (3);
+//  osDelay(500);
+//	LED_On (3);
+//  osDelay(500);
+//	LED_Off (3);
+//  osDelay(500);
+//	LED_On (3);
+//  osDelay(500);
+//	LED_Off (3);
+//  osDelay(500);
+//	LED_On (3);
+//  osDelay(500);
+//	LED_Off (3);
+//  osDelay(500);
 	while(Driver_USART2.GetStatus().tx_busy == 1); // attente buffer TX vide
 	Driver_USART2.Send(tab,10);
-	osDelay(5000);
+	osDelay(1000);
 	
+}
+
+void chooseSoundFromFile(char file, char sound)
+{
+	sendCommand(0x0F,file,sound); // ne fonctionne pas ATM
+	
+}
+
+void chooseSound(char sound)
+{
+	sendCommand(0x03,0x00,sound);
+
 }
 
 
@@ -139,13 +171,14 @@ void Init_UART(void){
 	Driver_USART2.Control(ARM_USART_CONTROL_RX,1);
 }
 
+//void const HAL_USART_T2ProcessCpltCallback
 
 
 int main(void)
 {
-	uint8_t tab[50];
+	uint8_t tab[13];
 	uint8_t soluce[13] = {0x30,0x38,0x30,0x30,0x38,0x43,0x32,0x33,0x45,0x39,0x34,0x45,0x03};
-	int i=0;	
+	char i=0,j=0,error=0;
 	
   /* STM32F4xx HAL library initialization:
        - Configure the Flash prefetch, Flash preread and Buffer caches
@@ -156,11 +189,11 @@ int main(void)
              handled in milliseconds basis.
        - Low Level Initialization
      */
-  //HAL_Init();
+  HAL_Init();
 	
   /* Configure the system clock to 168 MHz */
-  //SystemClock_Config();
-  //SystemCoreClockUpdate();
+	SystemClock_Config();
+  SystemCoreClockUpdate();
 
   /* Add your application code here
      */
@@ -187,39 +220,46 @@ int main(void)
 	//init ampli///
 	
 	
-	/*sendCommand(0x09,0x00,0x02); // set SD(data 2 = 1 pour TF) comme Source des fichiers
-	osDelay(300);
-	sendCommand(0x10,0x01,0x01); // set Volume Open (data1 =1) et volume ) 15/31 (data 2 =1)*/
+	/*sendCommand(0x09,0x00,0x02); // set SD(data 2 = 1 pour TF) comme Source des fichiers */
+//	osDelay(300);
+	/* sendCommand(0x10,0x01,0x01); // set Volume Open (data1 =1) et volume ) 15/31 (data 2 =1)*/
+	
+
 	LED_On (3);
 	LED_On (1);		
-		
+
 	while (1)
   {
 
-		/*
+		
 		Driver_USART2.Receive(tab,1);
 		while(Driver_USART2.GetRxCount()<1);
 		
-		Driver_USART2.Receive(tab,50);
-		while(Driver_USART2.GetRxCount()<13);*/
+		Driver_USART2.Receive(tab,13);
+		while(Driver_USART2.GetRxCount()<13);
 		
 		
+		LED_Off(1);
 		
-		sendCommand(0x01,0x00,0x00); //////////////////////OUVRIR LA PORTE ////////////////////////////////
-		
-		/*for (i=0;i<13;i++)
+		error =0;
+		for (i=0;i<13;i++)
 		{
 			if (tab[i] != soluce[i])
 			{
 				LED_Off (1); //////////////////////MESSAGE D'ERREUR////////////////////////////////
-				break;
+				i=13;
 			}
 			if(i==12)
 			{
-				
+				sendCommand(0x03,0x00,0x04); //////////////////////OUVRIR LA PORTE ////////////////////////////////
 				LED_Off(1);
+				for(j=0;j<13;j++)
+				{
+					tab[j]=0;
+				}
 			}
-		}*/
+		}
+		
   }
 }
 
