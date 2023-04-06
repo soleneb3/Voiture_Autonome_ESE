@@ -1,8 +1,54 @@
+/*----------------------------------------------------------------------------
+ * CMSIS-RTOS 'main' function template
+ *---------------------------------------------------------------------------*/
+
+#define osObjectsPublic                     // define objects in main module
+#include "osObjects.h"                      // RTOS object definitions
 #include "Driver_USART.h"               // ::CMSIS Driver:USART
 #include "LPC17xx.h"                    // Device header
 
-
 extern ARM_DRIVER_USART Driver_USART1;
+
+void tache1(void const * argument);
+void tache2(void const * argument);
+
+osThreadId ID_tache1;
+osThreadId ID_tache2;
+
+void myUART_callback(uint32_t event);
+
+
+void tache1(void const * argument){
+
+	char A = 0xA5;
+	char Commande = 0x20;
+	int i; 
+	char tab[15];
+	while(1) {
+			while(Driver_USART1.GetStatus().tx_busy == 1); // attente buffer TX vide
+			Driver_USART1.Send(&A,1);
+			while(Driver_USART1.GetStatus().tx_busy == 1); // attente buffer TX vide
+			Driver_USART1.Send(&Commande,1);
+	}
+}
+
+void tache2(void const * argument){
+	char tab[15];
+	while(1) {
+	osSignalWait(0x01, osWaitForever);
+		Driver_USART1.Receive(tab,12);
+		while(Driver_USART1.GetRxCount()<1);
+	}
+}
+
+void myUART_callback(uint32_t event) {
+switch(event) {
+	case ARM_USART_EVENT_RECEIVE_COMPLETE:
+	osSignalSet(ID_tache1, 0x01);
+	break;
+
+}
+}
 
 
 void Init_UART(void){
@@ -64,27 +110,21 @@ void Init_GPIO(void)
 	LPC_GPIO2->FIODIR0&=(0<<2);
 }
 
+osThreadDef(tache1,osPriorityNormal,1,0);
+osThreadDef(tache2,osPriorityAboveNormal,1,0);
 
-int main(void) {
-	
-	char A = 0xA5;
-	char Commande = 0x20;
-	int i;
+int main (void) {
+
 	Init_UART();
 	Init_GPIO(); 
 	Interruption_TIMER0(); 
   Interruption_TIMER1();
-	
-	while(1) {
-	
-	
-	while(Driver_USART1.GetStatus().tx_busy == 1); // attente buffer TX vide
-	Driver_USART1.Send(&A,1);
-	while(Driver_USART1.GetStatus().tx_busy == 1); // attente buffer TX vide
-	Driver_USART1.Send(&Commande,1);
-	for(i=0; i<100000;i++);
-	
-	}
-	
-return 0;
+  osKernelInitialize ();                    // initialize CMSIS-RTOS
+
+
+  ID_tache1 = osThreadCreate (osThread(tache1), NULL);
+	ID_tache2 = osThreadCreate (osThread(tache2), NULL);
+
+  osKernelStart ();                         // start thread execution
+osDelay(osWaitForever);	
 }
