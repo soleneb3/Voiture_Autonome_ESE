@@ -115,29 +115,9 @@ void sendCommand(char cmd, char P1,char P2)
 	checksum = 0-(tab[1]+tab[2]+tab[3]+tab[4]+tab[5]+tab[6]);
 	tab[7] = ((checksum & 0xFF00) >>8 );
 	tab[8] = checksum & 0x00FF;
-//	LED_On (3);
-//  osDelay(500);
-//	LED_Off (3);
-//  osDelay(500);
-//	LED_On (3);
-//  osDelay(500);
-//	LED_Off (3);
-//  osDelay(500);
-//	LED_On (3);
-//  osDelay(500);
-//	LED_Off (3);
-//  osDelay(500);
-//	LED_On (3);
-//  osDelay(500);
-//	LED_Off (3);
-//  osDelay(500);
-//	LED_On (3);
-//  osDelay(500);
-//	LED_Off (3);
-//  osDelay(500);
 	while(Driver_USART2.GetStatus().tx_busy == 1); // attente buffer TX vide
 	Driver_USART2.Send(tab,10);
-	osDelay(1000);
+	osDelay(100);
 	
 }
 
@@ -220,9 +200,9 @@ int main(void)
 	//init ampli///
 	
 	
-	/*sendCommand(0x09,0x00,0x02); // set SD(data 2 = 1 pour TF) comme Source des fichiers */
-//	osDelay(300);
-	/* sendCommand(0x10,0x01,0x01); // set Volume Open (data1 =1) et volume ) 15/31 (data 2 =1)*/
+	sendCommand(0x09,0x00,0x02); // set SD(data 2 = 1 pour TF) comme Source des fichiers */
+	osDelay(300);
+	sendCommand(0x10,0x01,0x01); // set Volume Open (data1 =1) et volume ) 15/31 (data 2 =1)*/
 	
 
 	LED_On (3);
@@ -253,10 +233,12 @@ int main(void)
 			{
 				sendCommand(0x03,0x00,0x04); //////////////////////OUVRIR LA PORTE ////////////////////////////////
 				LED_Off(1);
+				osDelay(500);
 				for(j=0;j<13;j++)
 				{
 					tab[j]=0;
 				}
+				LED_On(1);
 			}
 		}
 		
