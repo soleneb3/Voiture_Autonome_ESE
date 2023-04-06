@@ -53,7 +53,7 @@
 #endif
 
 
-#define JOYSTICK_I2C_ADDR 0x52 // adresse du nunchuck 
+#define SRF10_ADDR 0x73 // adresse du nunchuck 
 extern ARM_DRIVER_I2C Driver_I2C1;
 extern ARM_DRIVER_USART Driver_USART2;
 
@@ -93,20 +93,35 @@ uint32_t HAL_GetTick (void) {
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
+	void tache1(void const *argument); //proto
+
+	osThreadId ID_tache1;
+
+	osThreadDef (tache1, osPriorityNormal, 1, 0); //1 instance,taille pile par défaut 
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
 static void SystemClock_Config(void);
 static void Error_Handler(void);
 
+void myI2C_callback(uint32_t event);
+
 void Init_I2C(void){       //Init
-	Driver_I2C1.Initialize(NULL);
+	Driver_I2C1.Initialize(myI2C_callback);
 	Driver_I2C1.PowerControl(ARM_POWER_FULL);
 	Driver_I2C1.Control(	ARM_I2C_BUS_SPEED,				// 2nd argument = débit
 							ARM_I2C_BUS_SPEED_STANDARD  );	// 100 kHz
-	//Driver_I2C1.Control(	ARM_I2C_BUS_CLEAR,0 );
 }
 
+void myI2C_callback(uint32_t event){
+	switch (event)
+	{
+		case ARM_I2C_EVENT_TRANSFER_DONE:
+			osSignalSet(ID_tache1, 0x01);
+			break;
+		
+	}
 
+}
 
 void write1byte(unsigned char composant, unsigned char registre, unsigned char valeur) //Ecriture I2C0
 {
@@ -122,16 +137,21 @@ void write1byte(unsigned char composant, unsigned char registre, unsigned char v
 unsigned char read1byte(unsigned char composant, unsigned char registre)    //Lecture I2C0 (faire pour lire plus de 1 octet)
 	{ 
 		unsigned char data [6];
-		Driver_I2C1.MasterTransmit (composant, &registre, 1, false);		// false = avec stop
-		while (Driver_I2C1.GetStatus().busy == 1);	// attente fin transmission
+		Driver_I2C1.MasterTransmit (composant, &registre, 1, true);		// false = avec stop
+		/* Sommeil sur fin envoi */
+		osSignalWait(0x01, osWaitForever);
+		
+		//while (Driver_I2C1.GetStatus().busy == 1);	// attente fin transmission=> Mise en sommeil
 		Driver_I2C1.MasterReceive (composant, data, 1, false);		// false = avec stop
-		while (Driver_I2C1.GetStatus().busy == 1);	// attente fin transmission
+		/* Sommeil sur réception */
+		osSignalWait(0x01, osWaitForever);
+		//while (Driver_I2C1.GetStatus().busy == 1);	// attente fin transmission=> Mise en sommeil
 		return data[0]; 
 		}
 		
 void readnbyte(unsigned char composant, unsigned char registre, unsigned char* variable, char n)    //Lecture I2C0 (faire pour lire plus de 1 octet)
 	{ 
-		Driver_I2C1.MasterTransmit (composant, &registre, 1, false);		// false = avec stop
+		Driver_I2C1.MasterTransmit (composant, &registre, 1, true);		// false = avec stop
 		while (Driver_I2C1.GetStatus().busy == 1);	// attente fin transmission
 		Driver_I2C1.MasterReceive (composant, variable, n, false);		// false = avec stop
 		while (Driver_I2C1.GetStatus().busy == 1);	// attente fin transmission
@@ -161,22 +181,24 @@ void Init_UART(void){
   * @retval None
   */
 
-void tache1(void *argument); //proto
 
 
+void tache1(void const *argument) {
+    unsigned char distance;
 
-osThreadId ID_tache1;
+			write1byte(0x73, 0x00, 0x51);//start acquisitions
+			osDelay(70); 
+	while (1) {
+   
+			read1byte(0x73, 0x02);
 
-osThreadDef (tache1, osPriorityNormal, 1, 0); //1 instance,taille pile par défaut 
-
-
+			osDelay(20);
+	}
+}
 int main(void)
 {
-unsigned char distance;
-unsigned char X, Y;
-int Yenvoie = 0;
-int Xenvoie = 0;
-	int i;
+
+
 
 
   /* STM32F4xx HAL library initialization:
@@ -222,10 +244,7 @@ int Xenvoie = 0;
 		
   while (1)
   {	
-		write1byte(0x73,0x00,0x51); //commencer a avoir les mesures en cm 
-		osDelay(100);//for(i=0;i<1000000;i++);
-		distance = read1byte(0x73,0x02);
-		osDelay(100);
+	
   }
 }
 
