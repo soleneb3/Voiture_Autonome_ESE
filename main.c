@@ -166,43 +166,23 @@ unsigned char X, Y;
 int Yenvoie = 0;
 int Xenvoie = 0;
 
-
-  /* STM32F4xx HAL library initialization:
-       - Configure the Flash prefetch, Flash preread and Buffer caches
-       - Systick timer is configured by default as source of time base, but user 
-             can eventually implement his proper time base source (a general purpose 
-             timer for example or other time source), keeping in mind that Time base 
-             duration should be kept 1ms since PPP_TIMEOUT_VALUEs are defined and 
-             handled in milliseconds basis.
-       - Low Level Initialization
-     */
   HAL_Init();
 
-  /* Configure the system clock to 168 MHz */
+
   SystemClock_Config();
   SystemCoreClockUpdate();
 
-  /* Add your application code here
-     */
-	//#ifdef RTE_CMSIS_RTOS2
-  /* Initialize CMSIS-RTOS2 */
+
   osKernelInitialize ();
 	
-	//NVIC_SetPriority(USART2_IRQn,2);		// nécessaire ? (si LCD ?)
+
 	
 	LED_Initialize ();
 	Init_I2C(); 
 	Init_UART();
-  /* Create thread functions that start executing, 
-  Example: osThreadNew(app_main, NULL, NULL); */
-	
-  /* Start thread execution */
+
   osKernelStart();
-	//LED_On (3);
-//#endif
-	//osDelay(osWaitForever);
-	
-  /* Infinite loop */
+
 	write1byte(JOYSTICK_I2C_ADDR,0xF0,0x55); // initialiser le 1er registre 
   write1byte(JOYSTICK_I2C_ADDR,0xFB,0x00); // initialiser le 2eme registre
 
@@ -212,15 +192,10 @@ int Xenvoie = 0;
 			X = read1byte(JOYSTICK_I2C_ADDR, 0x00);  //lecture X
 			Y = read1byte(JOYSTICK_I2C_ADDR, 0x01);  // lecture Y
 		
-		
-		
-//			Yenvoie = (Y - 130) * 11.05;
-//			if(Yenvoie <= -1249) Yenvoie = -1249;  //saturation
-//			if(Yenvoie >= 1249) Yenvoie = 1249;
-//			if((Yenvoie<30)&&(Yenvoie>-30)) Yenvoie = 0;
-			
 			while(Driver_USART2.GetStatus().tx_busy == 1); // attente buffer TX vide
 			Driver_USART2.Send(&Y,1);
+			while(Driver_USART2.GetStatus().tx_busy == 1); // attente buffer TX vide
+			Driver_USART2.Send(&X,1);
 	
   }
 }
