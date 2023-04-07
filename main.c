@@ -113,13 +113,12 @@ void Init_I2C(void){       //Init
 }
 
 void myI2C_callback(uint32_t event){
-	switch (event)
-	{
-		case ARM_I2C_EVENT_TRANSFER_DONE:
-			osSignalSet(ID_tache1, 0x01);
-			break;
-		
-	}
+	
+	if (event & ARM_I2C_EVENT_TRANSFER_DONE) {
+    /* Transfer or receive is finished */
+		osSignalSet(ID_tache1, 0x01);
+  }
+	
 
 }
 
@@ -129,7 +128,8 @@ void write1byte(unsigned char composant, unsigned char registre, unsigned char v
 		tab[0] = registre;
 		tab[1] = valeur;
 		Driver_I2C1.MasterTransmit (composant, tab, 2, false);		// false = avec stop
-		while (Driver_I2C1.GetStatus().busy == 1);	// attente fin transmission
+				/* Sommeil sur fin envoi */
+		osSignalWait(0x01, osWaitForever);
 }
 
 
@@ -149,14 +149,15 @@ unsigned char read1byte(unsigned char composant, unsigned char registre)    //Le
 		return data[0]; 
 		}
 		
-void readnbyte(unsigned char composant, unsigned char registre, unsigned char* variable, char n)    //Lecture I2C0 (faire pour lire plus de 1 octet)
+void readnbyte(unsigned char composant, unsigned char registre, unsigned char* variable, char n)    //Lecture de n octets)
 	{ 
 		Driver_I2C1.MasterTransmit (composant, &registre, 1, true);		// false = avec stop
-		while (Driver_I2C1.GetStatus().busy == 1);	// attente fin transmission
+				/* Sommeil sur fin envoi */
+		osSignalWait(0x01, osWaitForever);
 		Driver_I2C1.MasterReceive (composant, variable, n, false);		// false = avec stop
-		while (Driver_I2C1.GetStatus().busy == 1);	// attente fin transmission
-//		for (i=0;i<6;i++) {
-//			*(variable+i) = data[i]; }
+		/* Sommeil sur réception */
+		osSignalWait(0x01, osWaitForever);
+
 		}
 
 
@@ -184,15 +185,18 @@ void Init_UART(void){
 
 
 void tache1(void const *argument) {
-    unsigned char distance;
-
-			write1byte(0x73, 0x00, 0x51);//start acquisitions
-			osDelay(70); 
+    unsigned short distance;
+unsigned char data[2];
+			
 	while (1) {
-   
-			read1byte(0x73, 0x02);
+			write1byte(0x73, 0x00, 0x51);//start acquisitions
+			osDelay(100); 
+			data[0] = read1byte(0x73, 0x03);   	
+			data[1] = read1byte(0x73, 0x02);
+			distance = (data[1] << 8) | data[0]; 
+ 
 
-			osDelay(20);
+			osDelay(100);
 	}
 }
 int main(void)
