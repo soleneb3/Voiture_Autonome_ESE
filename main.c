@@ -27,6 +27,7 @@ int main (void)
 	char message[15] ;
 	char tab[2];
 	int Yrecep;
+	int Xrecep;
 	GLCD_Initialize() ;
 	GLCD_ClearScreen();
 	GLCD_SetFont(&GLCD_Font_16x24) ;
@@ -34,7 +35,7 @@ int main (void)
 	Init_UART();
 	while (1)
 		{	
-			Driver_USART1.Receive(tab,1);
+			Driver_USART1.Receive(tab,2);
 			while(Driver_USART1.GetRxCount()<1);
 			Yrecep = tab[0];
 			Yrecep = (Yrecep - 130) * 11.05;
@@ -43,5 +44,12 @@ int main (void)
 			if((Yrecep<300)&&(Yrecep>-30)) Yrecep = 0;
 			sprintf(message, " Y = %d ",Yrecep) ; //on stocke dans message 
 			GLCD_DrawString(1,1,(char*)message) ; //colonne, ligne, message
+			
+					
+			Xrecep = tab[1];
+			Xrecep = -98*Xrecep + 49999; 
+			if((Xrecep<38100)&&(Xrecep>34000)) Xrecep = 37499;
+			sprintf(message, " X = %d ",Xrecep) ; //on stocke dans message 
+			GLCD_DrawString(1,50,(char*)message) ; //colonne, ligne, message
 		}
 	}
