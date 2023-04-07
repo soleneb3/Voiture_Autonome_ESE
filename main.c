@@ -6,14 +6,24 @@
 #include "osObjects.h"                      // RTOS object definitions
 #include "Driver_USART.h"               // ::CMSIS Driver:USART
 #include "LPC17xx.h"                    // Device header
+#include "Board_GLCD.h"                 // ::Board Support:Graphic LCD
+#include "GLCD_Config.h"                // Keil.MCB1700::Board Support:Graphic LCD
+#include "stdio.h"
 
 extern ARM_DRIVER_USART Driver_USART1;
+extern GLCD_FONT GLCD_Font_6x8;
+extern GLCD_FONT GLCD_Font_16x24;
 
 void tache1(void const * argument);
 void tache2(void const * argument);
+void tache3(void const * argument);
 
 osThreadId ID_tache1;
 osThreadId ID_tache2;
+osThreadId ID_tache3;
+osMutexId ID_mut_GLCD;
+osMailQId ID_bal;
+
 
 void myUART_callback(uint32_t event);
 
@@ -29,26 +39,66 @@ void tache1(void const * argument){
 			Driver_USART1.Send(&A,1);
 			while(Driver_USART1.GetStatus().tx_busy == 1); // attente buffer TX vide
 			Driver_USART1.Send(&Commande,1);
+			osDelay(2000);
 	}
 }
 
 void tache2(void const * argument){
 	char tab[15];
+	char message[15];
+	char message2[15];
+	short q6, q2;
+	char q6_1, q6_2, q2_1, q2_2;
+	short *ptr;
+	
 	while(1) {
-	osSignalWait(0x01, osWaitForever);
 		Driver_USART1.Receive(tab,12);
-		while(Driver_USART1.GetRxCount()<1);
+		osSignalWait(0x01, osWaitForever);
+			q6_1 = tab[1]>>1;
+			q6_2 = tab[2];
+			q6 = (short)(q6_2<<7|q6_1);
+			q2_1= tab[3];
+			q2_2 = tab[4];
+			q2 = (short)(q2_2<<8|q2_1);	
+			
+			//q6 = (q6&0xE000)|(q6&;
+			
+			ptr = osMailAlloc(ID_bal, osWaitForever);
+			*ptr = q2;
+			osMailPut(ID_bal, ptr);
+			
+			
 	}
 }
 
-void myUART_callback(uint32_t event) {
-switch(event) {
-	case ARM_USART_EVENT_RECEIVE_COMPLETE:
-	osSignalSet(ID_tache1, 0x01);
-	break;
+void tache3(void const * argument){
+	char message[15];
+	char message2[15];
+	short *recep, distance;
+	osEvent EVretour;
+	while(1) {
+		EVretour = osMailGet(ID_bal, osWaitForever);
+		recep = EVretour.value.p;
+		distance = *recep;
+		osMailFree(ID_bal, recep);
+		osMutexWait(ID_mut_GLCD, osWaitForever);
+			sprintf(message2, " distance = %d ",distance) ; //on stocke dans message 
+			GLCD_DrawString(1,1,message2); //colonne, ligne, message
+			osMutexRelease(ID_mut_GLCD);
+	}
+}
 
+
+void myUART_callback(uint32_t event) {
+if (event&ARM_USART_EVENT_RECEIVE_COMPLETE) {
+		osSignalSet(ID_tache2, 0x01);
+		}
+if (event&ARM_USART_EVENT_SEND_COMPLETE) {
+		//osSignalSet(ID_tache2, 0x01);
+		
 }
 }
+
 
 
 void Init_UART(void){
@@ -64,67 +114,55 @@ void Init_UART(void){
 	Driver_USART1.Control(ARM_USART_CONTROL_RX,1);
 }
 
-//Interruption sur 25kHz, 40us
-void Interruption_TIMER0(void)
-{
 
-	LPC_TIM0->PR=0; // PR à 0
-	LPC_TIM0->MR0 = 999; // Match register
-	LPC_TIM0->MCR |= (3<<0); // RAZ du compteur + interruption
+void Initialise_PWM1(void)
+{
+	LPC_SC->PCONP |= (1<<6); //enable PWM1
+	LPC_PWM1->MCR |= (1<<1); // Compteur relancé quand MR0 repasse à 0
 	
-	NVIC_SetPriority(TIMER0_IRQn,1); // Timer0 : interruption de priorité 1
-	NVIC_EnableIRQ(TIMER0_IRQn); // active les interruptions TIMER0
-  LPC_TIM0->TCR = 1; // Lancement Timer
-}
-
-//Interruption sur 60.9kHz, 16.5us
-void Interruption_TIMER1(void) 
-{
-
-	LPC_TIM1->PR=0; // PR à 0
-	LPC_TIM1->MR0 = 409 ; // Match register
-	LPC_TIM1->MCR |= (3<<0); // RAZ du compteur + interruption
+	LPC_PWM1->PR=0; // Prescaler
+	LPC_PWM1->MR0=999; // Match register pour 25kHz
 	
-	NVIC_SetPriority(TIMER1_IRQn,0); // Timer1 : interruption de priorité 0
-	NVIC_EnableIRQ(TIMER1_IRQn); // active les interruptions TIMER1
+	LPC_PINCON->PINSEL7|=(3<<18); // Validation des sorties PWM1.2
 	
+	LPC_PWM1->LER |= 0x0000000F; // Compteurs des PWM relancés quand MR passe à 0
+	LPC_PWM1->PCR |= 0x00000E00; // Autorise les sorties PWM2
+	
+	LPC_PWM1->TCR=1; //validation timer
 }
 
-void TIMER0_IRQHandler(void)
+void Choix_Vitesse(void)
 {
-	LPC_TIM0->IR |= (1<<0); // Baisse le drapeau
-	LPC_GPIO3->FIOPIN3 = LPC_GPIO3->FIOPIN3 | (1<<2); //Mise à 1 de P3.25
-	LPC_TIM1->TCR = 1; // Lancement Timer 1
+	LPC_PWM1->MR2=409; // Choix du rapport cyclique entre 1 et 999, 60.9kHz
 }
 
-void TIMER1_IRQHandler(void)
-{
-	LPC_TIM1->IR |= (1<<0); // Baisse le drapeau	
-	LPC_GPIO3->FIOPIN3 = LPC_GPIO3->FIOPIN3 & (0<<2);//Mise à 0 de P3.25
-	LPC_TIM1->TCR = 0; // Arret Timer 1
-}
 
-void Init_GPIO(void)
-{
-	LPC_GPIO3->FIODIR3|=(1<<2); // P3.25 en sortie
-	LPC_GPIO2->FIODIR0&=(0<<2);
-}
-
-osThreadDef(tache1,osPriorityNormal,1,0);
-osThreadDef(tache2,osPriorityAboveNormal,1,0);
+osThreadDef(tache1,osPriorityAboveNormal,1,0);
+osThreadDef(tache2,osPriorityNormal,1,0);
+osThreadDef(tache3,osPriorityNormal,1,0);
+osMutexDef(mut_GLCD);
+osMailQDef(bal,1,short);
 
 int main (void) {
 
 	Init_UART();
-	Init_GPIO(); 
-	Interruption_TIMER0(); 
-  Interruption_TIMER1();
+	Initialise_PWM1();
+	Choix_Vitesse();
+	GLCD_Initialize() ;
+	GLCD_ClearScreen();
+	GLCD_SetFont(&GLCD_Font_16x24) ;
+	//Init_GPIO(); 
+	//Interruption_TIMER0(); 
+  //Interruption_TIMER1();
   osKernelInitialize ();                    // initialize CMSIS-RTOS
 
 
   ID_tache1 = osThreadCreate (osThread(tache1), NULL);
 	ID_tache2 = osThreadCreate (osThread(tache2), NULL);
+	ID_tache3 = osThreadCreate (osThread(tache3), NULL);
+	ID_mut_GLCD = osMutexCreate(osMutex(mut_GLCD));
+	ID_bal = osMailCreate(osMailQ(bal), NULL);
 
   osKernelStart ();                         // start thread execution
-osDelay(osWaitForever);	
+	osDelay(osWaitForever);	
 }
