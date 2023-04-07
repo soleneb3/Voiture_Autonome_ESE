@@ -41,6 +41,8 @@
 #include "main.h"
 #include "Board_LED.h"                  // ::Board Support:LED
 #include "Driver_USART.h"               // ::CMSIS Driver:USART
+#include "Driver_CAN.h"               // ARM::CMSIS Driver:USART:Custom
+
 #include "cmsis_os.h"                   // ARM::CMSIS:RTOS:Keil RTX
 
 #ifdef _RTE_
@@ -102,7 +104,19 @@ static void Error_Handler(void);
   * @retval None
   */
 	
+
 extern ARM_DRIVER_USART Driver_USART2;
+osThreadId id_CANthreadT;
+osThreadId id_CANthreadR;
+
+void CANThreadR(void const *argument);
+void CANThreadT(void const *argument);
+void myUSART_callback(uint32_t obj_idx, uint32_t event); // arguments imposés
+
+
+
+
+
 void sendCommand(char cmd, char P1,char P2)
 {
 
@@ -134,12 +148,8 @@ void chooseSound(char sound)
 }
 
 
-
-
-
-
 void Init_UART(void){
-	Driver_USART2.Initialize(NULL);
+	Driver_USART2.Initialize(myUSART_callback);
 	Driver_USART2.PowerControl(ARM_POWER_FULL);
 	Driver_USART2.Control(	ARM_USART_MODE_ASYNCHRONOUS |
 							ARM_USART_DATA_BITS_8		|
@@ -149,9 +159,136 @@ void Init_UART(void){
 							9600);
 	Driver_USART2.Control(ARM_USART_CONTROL_TX,1);
 	Driver_USART2.Control(ARM_USART_CONTROL_RX,1);
+
+	
+}
+void Init_CAN(void);
+void setFiltreCAN(void);
+void sendCAN(short id,char *data);
+void receiveCAN(void);
+
+extern ARM_DRIVER_CAN Driver_CAN1;
+void Init_CAN(void)
+{
+
+	Driver_CAN1.Initialize(NULL,NULL);
+	Driver_CAN1.PowerControl(ARM_POWER_FULL);
+	Driver_CAN1.SetMode(ARM_CAN_MODE_INITIALIZATION);
+	Driver_CAN1.SetBitrate( ARM_CAN_BITRATE_NOMINAL, // débit fixe
+	125000, // 125 kbits/s (LS)
+	ARM_CAN_BIT_PROP_SEG(5U) | // prop. seg = 5 TQ
+	ARM_CAN_BIT_PHASE_SEG1(1U) | // phase seg1 = 1 TQ
+	ARM_CAN_BIT_PHASE_SEG2(1U) | // phase seg2 = 1 TQ
+	ARM_CAN_BIT_SJW(1U)); // Resync. Seg = 1 TQ
+	
+	Driver_CAN1.ObjectConfigure(1,ARM_CAN_OBJ_TX); // Objet 1 pour émission
+	Driver_CAN1.ObjectConfigure(0,ARM_CAN_OBJ_RX); // Objet 0 pour réception
+	Driver_CAN1.SetMode(ARM_CAN_MODE_NORMAL); // fin initialisation
+	
+	setFiltreCAN();
 }
 
+void setFiltreCAN(void)
+{
+	Driver_CAN1.ObjectSetFilter( 0, ARM_CAN_FILTER_ID_EXACT_ADD ,
+	ARM_CAN_STANDARD_ID(0x5F6),
+	0) ; 
+}
+
+void sendCAN(short id,char *data)
+{
+	unsigned char data_buf[10];
+	ARM_CAN_MSG_INFO tx_msg_info;
+	tx_msg_info.id = ARM_CAN_STANDARD_ID (id);
+	tx_msg_info.rtr = 0; // 0 = trame DATA
+	data_buf [0] = 0xFA; // data à envoyer à placer dans un tableau de char
+	Driver_CAN1.MessageSend(1, &tx_msg_info, data_buf, 1); // 1 data à envoyer
+		
+	
+}
+
+void receiveCAN(void)
+{
+	unsigned char data_buf[10];
+	short identifiant =0;
+	char retour =0;
+	char taille=0;
+	ARM_CAN_MSG_INFO rx_msg_info;
+	Driver_CAN1.MessageRead(0, &rx_msg_info, data_buf, 8); // 8 data max
+	identifiant = rx_msg_info.id; // (int)
+	retour = data_buf [0] ; // 1ère donnée de la trame récupérée (char)
+	taille = rx_msg_info.dlc; // nb data (char)
+		
+	
+}
+
+void myUSART_callback(uint32_t obj_idx, uint32_t event) // arguments imposés
+{
+
+switch (event)
+{
+
+case ARM_USART_EVENT_SEND_COMPLETE:
+	osSignalSet(id_CANthreadT, 0x01);
+	LED_On (4);
+break;
+case ARM_USART_EVENT_RX_BREAK: 
+	LED_Off(1);
+	osSignalSet(id_CANthreadR, 0x01);
+case 	ARM_USART_EVENT_RECEIVE_COMPLETE :
+	LED_Off(1);
+	osSignalSet(id_CANthreadR, 0x01);
+break;
+}
+}
+void CANThreadT(void const *argument)
+{
+	char data[10]="333";
+	osEvent evt;
+	while(1)
+	{
+		
+		Driver_USART2.Send(data,3);
+		evt=osSignalWait(0x01,osWaitForever);
+		LED_On (2);
+		
+		osDelay(400);
+		LED_Off (2);
+		osDelay(400);
+	}
+	
+}
+
+void CANThreadR(void const *argument)
+{
+	
+	char receive[50];
+	osEvent evt;
+	while(1)
+	{
+		
+		Driver_USART2.Receive(receive,50);
+		
+		evt=osSignalWait(0x01,osWaitForever);
+		if(receive[0]==0x31)
+		{
+			LED_On(4);
+		}
+		else if(receive[0]==0x32)
+		{
+			LED_Off(1);
+		}
+	}
+
+}
+
+
 //void const HAL_USART_T2ProcessCpltCallback
+osThreadDef (CANThreadR, osPriorityNormal, 1, 0); // 1 instance, taille pile par défaut
+osThreadDef (CANThreadT, osPriorityNormal, 1, 0); // 1 instance, taille pile par défaut
+
+
+
 
 
 int main(void)
@@ -179,7 +316,6 @@ int main(void)
      */
 
 
-#ifdef RTE_CMSIS_RTOS2	// A commenter si utilisation RTOS
   /* Initialize CMSIS-RTOS2 */
   osKernelInitialize ();
 
@@ -188,7 +324,7 @@ int main(void)
 
   /* Start thread execution */
   osKernelStart();
-#endif
+
 	
 	
 	
@@ -196,11 +332,15 @@ int main(void)
 
 	LED_Initialize();
 	Init_UART();
+	Init_CAN();
 		
 	//init ampli///
+	id_CANthreadR = osThreadCreate ( osThread ( CANThreadR ), NULL ) ;
+	id_CANthreadT = osThreadCreate ( osThread ( CANThreadT ), NULL ) ;
 	
+
 	
-	sendCommand(0x09,0x00,0x02); // set SD(data 2 = 1 pour TF) comme Source des fichiers */
+	/*sendCommand(0x09,0x00,0x02); // set SD(data 2 = 1 pour TF) comme Source des fichiers 
 	osDelay(300);
 	sendCommand(0x10,0x01,0x01); // set Volume Open (data1 =1) et volume ) 15/31 (data 2 =1)*/
 	
@@ -208,10 +348,16 @@ int main(void)
 	LED_On (3);
 	LED_On (1);		
 
+	osDelay(osWaitForever);
 	while (1)
   {
-
+		/*LED_On (2);
+		sendCAN(0x12F,"000");
+		osDelay(400);
+		LED_Off (2);
+		osDelay(400);*/
 		
+		/*
 		Driver_USART2.Receive(tab,1);
 		while(Driver_USART2.GetRxCount()<1);
 		
@@ -219,7 +365,7 @@ int main(void)
 		while(Driver_USART2.GetRxCount()<13);
 		
 		
-		LED_Off(1);
+
 		
 		error =0;
 		for (i=0;i<13;i++)
@@ -240,9 +386,10 @@ int main(void)
 				}
 				LED_On(1);
 			}
-		}
+		}*/
 		
   }
+	
 }
 
 /**
