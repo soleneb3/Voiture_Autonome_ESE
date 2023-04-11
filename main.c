@@ -37,7 +37,7 @@ int main (void)
 		{	
 			Driver_USART1.Receive(tab,2);
 			while(Driver_USART1.GetRxCount()<1);
-			Yrecep = tab[0];
+			Yrecep = tab[1];
 			Yrecep = (Yrecep - 130) * 11.05;
 			if(Yrecep <= -1249) Yrecep = -1249;  //saturation
 			if(Yrecep >= 1249) Yrecep = 1249;
@@ -46,7 +46,7 @@ int main (void)
 			GLCD_DrawString(1,1,(char*)message) ; //colonne, ligne, message
 			
 					
-			Xrecep = tab[1];
+			Xrecep = tab[0];
 			Xrecep = -98*Xrecep + 49999; 
 			if((Xrecep<38100)&&(Xrecep>34000)) Xrecep = 37499;
 			sprintf(message, " X = %d ",Xrecep) ; //on stocke dans message 
