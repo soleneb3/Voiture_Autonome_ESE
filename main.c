@@ -52,7 +52,7 @@ void tache2(void const * argument){
 	short *ptr;
 	
 	while(1) {
-		Driver_USART1.Receive(tab,12);
+		Driver_USART1.Receive(tab,5);
 		osSignalWait(0x01, osWaitForever);
 			q6_1 = tab[1]>>1;
 			q6_2 = tab[2];
@@ -61,7 +61,7 @@ void tache2(void const * argument){
 			q2_2 = tab[4];
 			q2 = (short)(q2_2<<8|q2_1);	
 			
-			//q6 = (q6&0xE000)|(q6&;
+			//q6 = (q6&0xFE00)+(q6&01FF)*2^-9;
 			
 			ptr = osMailAlloc(ID_bal, osWaitForever);
 			*ptr = q2;
@@ -74,6 +74,7 @@ void tache2(void const * argument){
 void tache3(void const * argument){
 	char message[15];
 	char message2[15];
+	int i;
 	short *recep, distance;
 	osEvent EVretour;
 	while(1) {
@@ -82,9 +83,12 @@ void tache3(void const * argument){
 		distance = *recep;
 		osMailFree(ID_bal, recep);
 		osMutexWait(ID_mut_GLCD, osWaitForever);
-			sprintf(message2, " distance = %d ",distance) ; //on stocke dans message 
-			GLCD_DrawString(1,1,message2); //colonne, ligne, message
-			osMutexRelease(ID_mut_GLCD);
+		sprintf(message2, " distance = %d ",distance) ; //on stocke dans message 
+		GLCD_DrawString(1,1,message2); //colonne, ligne, message
+		osMutexRelease(ID_mut_GLCD);
+		
+		distance = (distance&0xA000) + (distance&0x3FFF)*(2^-14);
+		
 	}
 }
 
@@ -92,7 +96,7 @@ void tache3(void const * argument){
 void myUART_callback(uint32_t event) {
 if (event&ARM_USART_EVENT_RECEIVE_COMPLETE) {
 		osSignalSet(ID_tache2, 0x01);
-		}
+		} 
 if (event&ARM_USART_EVENT_SEND_COMPLETE) {
 		//osSignalSet(ID_tache2, 0x01);
 		
