@@ -57,6 +57,16 @@
 extern ARM_DRIVER_I2C Driver_I2C1;
 extern ARM_DRIVER_USART Driver_USART2;
 
+void tache1(void const * argument);
+void tache2(void const * argument);
+void tache3(void const * argument);
+
+osThreadId ID_tache1;
+osThreadId ID_tache2;
+osThreadId ID_tache3;
+osMailQId ID_bal;
+
+
 #ifdef RTE_CMSIS_RTOS2_RTX5
 /**
   * Override default HAL_GetTick function
@@ -97,6 +107,7 @@ uint32_t HAL_GetTick (void) {
 /* Private function prototypes -----------------------------------------------*/
 static void SystemClock_Config(void);
 static void Error_Handler(void);
+
 
 void Init_I2C(void){       //Init
 	Driver_I2C1.Initialize(NULL);
@@ -154,50 +165,78 @@ void Init_UART(void){
 }
 
 
-/* Private functions ---------------------------------------------------------*/
-/**
-  * @brief  Main program
-  * @param  None
-  * @retval None
-  */
-int main(void)
-{
-unsigned char X, Y;
-int Yenvoie = 0;
-int Xenvoie = 0;
-
-  HAL_Init();
-
-
-  SystemClock_Config();
-  SystemCoreClockUpdate();
-
-
-  osKernelInitialize ();
+void tache1(void const * argument){ //I2C
+	unsigned char X, Y;
+	char *ptr;
 	
-
-	
-	LED_Initialize ();
-	Init_I2C(); 
-	Init_UART();
-
-  osKernelStart();
-
 	write1byte(JOYSTICK_I2C_ADDR,0xF0,0x55); // initialiser le 1er registre 
   write1byte(JOYSTICK_I2C_ADDR,0xFB,0x00); // initialiser le 2eme registre
 
-		
   while (1)
   {	
 			X = read1byte(JOYSTICK_I2C_ADDR, 0x00);  //lecture X
 			Y = read1byte(JOYSTICK_I2C_ADDR, 0x01);  // lecture Y
-		
-			while(Driver_USART2.GetStatus().tx_busy == 1); // attente buffer TX vide
-			Driver_USART2.Send(&Y,1);
-			while(Driver_USART2.GetStatus().tx_busy == 1); // attente buffer TX vide
-			Driver_USART2.Send(&X,1);
+			//osDelay(2000);
+			
+			ptr = osMailAlloc(ID_bal, osWaitForever);
+			*ptr = X;
+			osMailPut(ID_bal, ptr);
+			
+			ptr = osMailAlloc(ID_bal, osWaitForever);
+			*ptr = Y;
+			osMailPut(ID_bal, ptr);
+	}
+}
+
+void tache2(void const * argument){ //I2C
+
+	char *recep, X, Y;
+	osEvent EVretour;
 	
-  }
+	while(1) {
+		
+		EVretour = osMailGet(ID_bal, osWaitForever);
+		recep = EVretour.value.p;
+		Y = *recep;
+		osMailFree(ID_bal, recep);
+		while(Driver_USART2.GetStatus().tx_busy == 1); // attente buffer TX vide
+		Driver_USART2.Send(&Y,1);
+		
+		EVretour = osMailGet(ID_bal, osWaitForever);
+		recep = EVretour.value.p;
+		X = *recep;
+		osMailFree(ID_bal, recep);
+		while(Driver_USART2.GetStatus().tx_busy == 1); // attente buffer TX vide
+		Driver_USART2.Send(&X,1);
+		}
+}
+
+
+osThreadDef(tache1,osPriorityNormal,1,0);
+osThreadDef(tache2,osPriorityNormal,1,0);
+osMailQDef(bal,2,char);
+
+int main(void)
+{
+
+  HAL_Init();
+
+  SystemClock_Config();
+  SystemCoreClockUpdate();
+
+	LED_Initialize ();
+	Init_I2C(); 
+	Init_UART();
+	
+	osKernelInitialize ();
+  
+	
+	ID_tache1 = osThreadCreate (osThread(tache1), NULL);
+	ID_tache2 = osThreadCreate (osThread(tache2), NULL);
+	ID_bal = osMailCreate(osMailQ(bal), NULL);
+	
+	osKernelStart();
+	osDelay(osWaitForever);
 }
 
 
