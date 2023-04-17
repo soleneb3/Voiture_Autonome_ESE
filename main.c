@@ -104,7 +104,7 @@ osThreadDef(UARTreceive, osPriorityNormal, 1, 0); //réception
 static void SystemClock_Config(void);
 static void Error_Handler(void);
 
-void myI2C_callback(uint32_t event);
+
 
 void Init_UART(void){      
 	Driver_USART3.Initialize(NULL);
