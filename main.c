@@ -147,16 +147,19 @@ void myUART_callback(uint32_t event){
 
 void UARTreceive(void const *argument)
 	{
-		char tab[1];
+		char tab[50];
 		while(1)
 		{
-			
-			Driver_USART3.Receive(tab,1); // tableau de 1 case
-//		while (Driver_USART3.GetRxCount() <1 ) ; // on attend que 1 case soit pleine
+			LED_Off(4);
 			osSignalWait(0x01, osWaitForever); //sommeil sur l'attente de reception 
-			Driver_USART3.Receive(tab,50); // la fonction remplira jusqu'à 50 cases
+			
+		//	Driver_USART3.Receive(tab,1); // tableau de 1 case
 //		while (Driver_USART3.GetRxCount() <1 ) ; // on attend que 1 case soit pleine
-			osSignalWait(0x01, osWaitForever);   //sommeil sur l'attente de reception 
+			LED_On(4);
+			Driver_USART3.Receive(tab,50); // la fonction remplira jusqu'à 50 cases
+	
+//		while (Driver_USART3.GetRxCount() <1 ) ; // on attend que 1 case soit pleine
+		//	osSignalWait(0x01, osWaitForever);   //sommeil sur l'attente de reception 
 		}
 	}
 	
