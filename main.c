@@ -12,19 +12,20 @@ extern ARM_DRIVER_USART Driver_USART1;
 
 int Yrecep, Xrecep;
 
-void myUSART_callback(uint32_t obj_idx, uint32_t event);
+
 
 void tache1(void const * argument);
 void tache2(void const * argument);
-void USARTthreadR(void const * argument);
+void tache3(void const * argument);
 
-osThreadId ID_tache1, ID_USARTthreadR, ID_tache2;
+
+osThreadId ID_tache1, ID_tache2, ID_tache3;
 
 
 void Init_GPIO(void)
 {
 	LPC_GPIO3->FIODIR3|=(1<<2); // P3.25 en sortie
-	LPC_GPIO2->FIODIR0&=(0<<2);	
+	LPC_GPIO2->FIODIR0|=(1<<2);	
 	LPC_GPIO0->FIODIR2 |= (5<<0);
 }
 
@@ -88,10 +89,15 @@ void Choix_Vitesse(int vitesse)
 	LPC_PWM1->MR2=vitesse; // Choix du rapport cyclique entre 1 et 1249
 }
 
+void Choix_Direction(int direction)
+{
+	LPC_TIM1->MR0 = direction  ; // Match register
+}
+
 void TIMER0_IRQHandler(void)
 {
 	LPC_TIM0->IR |= (1<<0); // Baisse le drapeau
-	LPC_GPIO3->FIOPIN3 = LPC_GPIO3->FIOPIN3 | (1<<2); //Mise à 1 de P2.4
+	LPC_GPIO2->FIOPIN0 = LPC_GPIO2->FIOPIN0 | (1<<2); //Mise à 1 de P2.4
 	LPC_TIM1->TCR = 1; // Lancement Timer 1
 }
 
@@ -99,49 +105,11 @@ void TIMER0_IRQHandler(void)
 void TIMER1_IRQHandler(void)
 {
 	LPC_TIM1->IR |= (1<<0); // Baisse le drapeau	
-	LPC_GPIO3->FIOPIN3 = LPC_GPIO3->FIOPIN3 & (0<<2);//Mise à 0 de P2.4
+	LPC_GPIO2->FIOPIN0 = LPC_GPIO2->FIOPIN0 & (0<<2);//Mise à 0 de P2.4
 	LPC_TIM1->TCR = 0; // Arret Timer 1
 }
 
 
-
-osThreadId ID_tache1,ID_USARTthreadR, ID_tache2;
-
-
-void myUSART_callback(uint32_t obj_idx, uint32_t event)
-{
-	if(event&ARM_USART_EVENT_RECEIVE_COMPLETE)
-	{
-			osSignalSet(ID_USARTthreadR, 0x01);
-	}
-}
-
-void USARTthreadR(void const * argument)
-{
-	char tab[2];
-	int Yrecep;
-	while (1)
-	{
-		
-		Driver_USART1.Receive(tab,1);
-		osSignalWait(0x01, osWaitForever); //mise en sommeil + attente EV 0
-		Yrecep = tab[1];
-		Yrecep = (Yrecep - 130) * 11.05;
-		if(Yrecep <= -1249) Yrecep = -1249;  //saturation
-		if(Yrecep >= 1249) Yrecep = 1249;
-		if((Xrecep<38100)&&(Xrecep>34000)) Xrecep = 37499;
-		if((Yrecep<300)&&(Yrecep>-30)) Yrecep = 0;
-		
-		Xrecep = tab[0];
-		Xrecep = -98*Xrecep + 49999; 
-			
-		
-		if (Yrecep>0) osSignalSet(ID_tache1, 0x02); //mise à un EV1
-		else if (Yrecep>0) osSignalSet(ID_tache2, 0x04); //mise à un EV2
-
-	}
-}
-	
 
 //Avancer
 void tache1(void const * argument)
@@ -156,7 +124,7 @@ void tache1(void const * argument)
 	  LPC_GPIO0->FIOPIN2 &= 0xFB; //mise à 0 de P0.18
 		
 		Choix_Vitesse(Yrecep); //Propulsion
-		LPC_TIM1->MR0 = Xrecep; //Direction
+		Choix_Direction(Xrecep); //Direction
 		
 	}
 }
@@ -165,21 +133,52 @@ void tache1(void const * argument)
 //Reculer
 void tache2(void const * argument)
 {
-  osSignalWait(0x04, osWaitForever);//mise en sommeil + attente EV2
+  
 
 	while (1)
 	{
+		osSignalWait(0x04, osWaitForever);//mise en sommeil + attente EV2
+		
    //moteur tourne au sens inverse
 		LPC_GPIO0->FIOPIN2 &= 0xFE; //mise à 0 de P0.16
 	  LPC_GPIO0->FIOPIN2 |= 0x04; //mise à 1 de P0.18
 
-   Choix_Vitesse(Yrecep); //Propulsion
-	 LPC_TIM1->MR0 = Xrecep; //Direction
-
-   osSignalWait(0x04, osWaitForever);//mise en sommeil + attente EV2
+   Choix_Vitesse(-Yrecep); //Propulsion
+	 Choix_Direction(Xrecep); //Direction
 
 	}
 }
+
+void tache3(void const * argument)
+{
+	/*
+	int Yrecep, Xrecep;
+	int *ptr;*/
+	char tab[2];
+	
+	while (1)
+	{
+		Driver_USART1.Receive(tab,2);
+		while(Driver_USART1.GetRxCount()<1);
+		Yrecep = tab[1];
+		Yrecep = (Yrecep - 130) * 11.05;
+		if(Yrecep <= -1249) Yrecep = -1200;  //saturation
+		if(Yrecep >= 1249) Yrecep = 1200;
+		if((Yrecep<300)&&(Yrecep>-300)) Yrecep = 0;
+		
+		Xrecep = tab[0];
+		Xrecep = -98*Xrecep + 49999;
+		if(Xrecep <= 24999) Xrecep = 24999;  //saturation
+		if(Xrecep >= 49999) Xrecep = 49999;
+		if((Xrecep<35000)&&(Xrecep>40000)) Xrecep = 37499;
+			
+		
+		if (Yrecep>=0) osSignalSet(ID_tache1, 0x02); //mise à un EV1
+		else if (Yrecep<0) osSignalSet(ID_tache2, 0x04); //mise à un EV2
+		
+	}
+}
+
 
 
 /*
@@ -188,7 +187,7 @@ void tache2(void const * argument)
 
 osThreadDef(tache1, osPriorityNormal,1,0);
 osThreadDef(tache2, osPriorityNormal,1,0);
-osThreadDef(USARTthreadR, osPriorityNormal,1,0);
+osThreadDef(tache3, osPriorityBelowNormal,1,0);
 
 int main (void) {
   osKernelInitialize ();                    // initialize CMSIS-RTOS
@@ -204,7 +203,7 @@ int main (void) {
   // example: tid_name = osThreadCreate (osThread(name), NULL);
 	ID_tache1 = osThreadCreate(osThread(tache1),NULL);
 	ID_tache2 = osThreadCreate(osThread(tache2),NULL);
-	ID_USARTthreadR = osThreadCreate(osThread(USARTthreadR),NULL);
+	ID_tache3 = osThreadCreate(osThread(tache3),NULL);
 
   osKernelStart ();                         // start thread execution 
 	osDelay(osWaitForever); //mise en sommeil infinie
