@@ -39,8 +39,11 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "Board_LED.h"                  // ::Board Support:LED
+#include "cmsis_os.h"                   // ARM::CMSIS:RTOS:Keil RTX
 #include "Driver_USART.h"               // ::CMSIS Driver:USART
+
+
+#include "Board_LED.h"                  // ::Board Support:LED
 
 #ifdef _RTE_
 #include "RTE_Components.h"             // Component selection
@@ -49,13 +52,11 @@
 #include "cmsis_os2.h"                  // ::CMSIS:RTOS2
 #endif
 
+
+
+extern ARM_DRIVER_USART Driver_USART3;
+
 #ifdef RTE_CMSIS_RTOS2_RTX5
-
-
-
-
-
-
 /**
   * Override default HAL_GetTick function
   */
@@ -76,6 +77,8 @@ uint32_t HAL_GetTick (void) {
   return ++ticks;
 }
 
+
+
 #endif
 
 /** @addtogroup STM32F4xx_HAL_Examples
@@ -89,10 +92,48 @@ uint32_t HAL_GetTick (void) {
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
+
+void UARTreceive(void const *argument);
+
+
+osThreadId ID_UARTreceive;
+
+osThreadDef(UARTreceive, osPriorityNormal, 1, 0); //réception 
 /* Private variables ---------------------------------------------------------*/
 /* Private function prototypes -----------------------------------------------*/
 static void SystemClock_Config(void);
 static void Error_Handler(void);
+
+void myI2C_callback(uint32_t event);
+
+void Init_UART(void){      
+	Driver_USART3.Initialize(NULL);
+	Driver_USART3.PowerControl(ARM_POWER_FULL);
+	Driver_USART3.Control(ARM_USART_MODE_ASYNCHRONOUS |
+												ARM_USART_DATA_BITS_8 |
+												ARM_USART_STOP_BITS_1 |
+												ARM_USART_PARITY_NONE |
+												ARM_USART_FLOW_CONTROL_NONE ,
+												115200);
+
+Driver_USART3.Control(ARM_USART_CONTROL_TX,1); // validation émission
+Driver_USART3.Control(ARM_USART_CONTROL_RX,1); // validation réception 
+	
+}
+
+void myUART_callback(uint32_t event){
+	
+	if (event & ARM_USART_EVENT_RECEIVE_COMPLETE) {
+    /* Transfer or receive is finished */
+		osSignalSet(ID_UARTreceive, 0x01);
+  }
+	
+
+}
+
+
+
+
 
 /* Private functions ---------------------------------------------------------*/
 /**
@@ -100,49 +141,32 @@ static void Error_Handler(void);
   * @param  None
   * @retval None
   */
+
+
+
+
+void UARTreceive(void const *argument)
+	{
+		char tab[1];
+		while(1)
+		{
+			
+			Driver_USART3.Receive(tab,1); // tableau de 1 case
+//		while (Driver_USART3.GetRxCount() <1 ) ; // on attend que 1 case soit pleine
+			osSignalWait(0x01, osWaitForever); //sommeil sur l'attente de reception 
+			Driver_USART3.Receive(tab,50); // la fonction remplira jusqu'à 50 cases
+//		while (Driver_USART3.GetRxCount() <1 ) ; // on attend que 1 case soit pleine
+			osSignalWait(0x01, osWaitForever);   //sommeil sur l'attente de reception 
+		}
+	}
 	
-extern ARM_DRIVER_USART Driver_USART2;
-void sendCommand(char folder,char sound)
-{
-	unsigned char tab[10] = {0x7E ,0xFF, 0x06, 0x03,0x00,0x00,0x01,0x00,0x00,0xEF};
-	char checksum=0;
-	tab[5] = folder;
-	tab[6]= sound;
-	checksum = -(tab[1]+tab[2]+tab[3]+tab[4]+tab[5]+tab[6]);
-	tab[7] = checksum >>8;
-	tab[8] = checksum;
-	while(Driver_USART2.GetStatus().tx_busy == 1); // attente buffer TX vide
-	Driver_USART2.Send(tab,11);
-	while(1);
-	
-}
-
-
-
-
-
-
-void Init_UART(void){
-	Driver_USART2.Initialize(NULL);
-	Driver_USART2.PowerControl(ARM_POWER_FULL);
-	Driver_USART2.Control(	ARM_USART_MODE_ASYNCHRONOUS |
-							ARM_USART_DATA_BITS_8		|
-							ARM_USART_STOP_BITS_1		|
-							ARM_USART_PARITY_NONE		|
-							ARM_USART_FLOW_CONTROL_NONE,
-							9600);
-	Driver_USART2.Control(ARM_USART_CONTROL_TX,1);
-	Driver_USART2.Control(ARM_USART_CONTROL_RX,1);
-}
-
-
-
 int main(void)
 {
-	uint8_t tab[50];
-	uint8_t soluce[13] = {0x30,0x38,0x30,0x30,0x38,0x43,0x32,0x33,0x45,0x39,0x34,0x45,0x03};
-	int i=0;	
+
+
 	
+
+
   /* STM32F4xx HAL library initialization:
        - Configure the Flash prefetch, Flash preread and Buffer caches
        - Systick timer is configured by default as source of time base, but user 
@@ -152,64 +176,44 @@ int main(void)
              handled in milliseconds basis.
        - Low Level Initialization
      */
-  //HAL_Init();
-	
+  HAL_Init();
+
   /* Configure the system clock to 168 MHz */
-  //SystemClock_Config();
-  //SystemCoreClockUpdate();
+  SystemClock_Config();
+  SystemCoreClockUpdate();
 
   /* Add your application code here
      */
-
-
-#ifdef RTE_CMSIS_RTOS2	// A commenter si utilisation RTOS
+	//#ifdef RTE_CMSIS_RTOS2
   /* Initialize CMSIS-RTOS2 */
   osKernelInitialize ();
+	
 
+	
+	LED_Initialize ();
+
+	Init_UART();
   /* Create thread functions that start executing, 
   Example: osThreadNew(app_main, NULL, NULL); */
-
+	ID_UARTreceive = osThreadCreate ( osThread ( UARTreceive ), NULL ) ; 
+	
   /* Start thread execution */
   osKernelStart();
-#endif
+	//LED_On (3);
+//#endif
+	//osDelay(osWaitForever);
 	
-	
-	
-	
-
-	LED_Initialize();
-	Init_UART();
-		
-	LED_On (3);
-	LED_On (1);		
-		
-	while (1)
-  {
+  /* Infinite loop */
+	osDelay(osWaitForever) ; //main passe en sommeil infini 
+	return 0; 
 
 		
-		Driver_USART2.Receive(tab,1);
-		while(Driver_USART2.GetRxCount()<1);
-		
-		Driver_USART2.Receive(tab,50);
-		while(Driver_USART2.GetRxCount()<13);
-		
-		
-		
-		for (i=0;i<13;i++)
-		{
-			if (tab[i] != soluce[i])
-			{
-				LED_Off (1); //////////////////////MESSAGE D'ERREUR////////////////////////////////
-				break;
-			}
-			if(i==12)
-			{
-				sendCommand(0x01,0x01); //////////////////////OUVRIR LA PORTE ////////////////////////////////
-				LED_Off(1);
-			}
-		}
+  while (1)
+  {	
+	
   }
 }
+
 
 /**
   * @brief  System Clock Configuration
@@ -221,7 +225,7 @@ int main(void)
   *            APB1 Prescaler                 = 4
   *            APB2 Prescaler                 = 2
   *            HSE Frequency(Hz)              = 8000000
-  *            PLL_M                          = 8
+  *            PLL_M                          = 25
   *            PLL_N                          = 336
   *            PLL_P                          = 2
   *            PLL_Q                          = 7
