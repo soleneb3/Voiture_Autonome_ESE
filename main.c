@@ -113,8 +113,8 @@ void Init_UART(void){
 												ARM_USART_DATA_BITS_8 |
 												ARM_USART_STOP_BITS_1 |
 												ARM_USART_PARITY_NONE |
-												ARM_USART_FLOW_CONTROL_NONE ,
-												115200);
+												ARM_USART_FLOW_CONTROL_NONE , 
+												9600);
 
 Driver_USART3.Control(ARM_USART_CONTROL_TX,1); // validation émission
 Driver_USART3.Control(ARM_USART_CONTROL_RX,1); // validation réception 
@@ -193,17 +193,12 @@ int main(void)
 	LED_Initialize ();
 
 	Init_UART();
-  /* Create thread functions that start executing, 
-  Example: osThreadNew(app_main, NULL, NULL); */
+
 	ID_UARTreceive = osThreadCreate ( osThread ( UARTreceive ), NULL ) ; 
 	
-  /* Start thread execution */
+  
   osKernelStart();
-	//LED_On (3);
-//#endif
-	//osDelay(osWaitForever);
-	
-  /* Infinite loop */
+
 	osDelay(osWaitForever) ; //main passe en sommeil infini 
 	return 0; 
 
