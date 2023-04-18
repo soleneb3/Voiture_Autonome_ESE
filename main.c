@@ -7,8 +7,14 @@
 #include "Driver_USART.h"               // ::CMSIS Driver:USART
 #include "LPC17xx.h"
 #include "TIMER.h"
+#include "Board_GLCD.h"                 // ::Board Support:Graphic LCD
+#include "GLCD_Config.h"                // Keil.MCB1700::Board Support:Graphic LCD
+#include "stdio.h"
+
 
 extern ARM_DRIVER_USART Driver_USART1;
+extern GLCD_FONT GLCD_Font_6x8;
+extern GLCD_FONT GLCD_Font_16x24;
 
 int Yrecep, Xrecep;
 
@@ -97,7 +103,7 @@ void Choix_Direction(int direction)
 void TIMER0_IRQHandler(void)
 {
 	LPC_TIM0->IR |= (1<<0); // Baisse le drapeau
-	LPC_GPIO2->FIOPIN0 = LPC_GPIO2->FIOPIN0 | (1<<2); //Mise à 1 de P2.4
+	LPC_GPIO3->FIOPIN3 = LPC_GPIO3->FIOPIN3 | (1<<2); //Mise à 1 de P2.4
 	LPC_TIM1->TCR = 1; // Lancement Timer 1
 }
 
@@ -105,7 +111,7 @@ void TIMER0_IRQHandler(void)
 void TIMER1_IRQHandler(void)
 {
 	LPC_TIM1->IR |= (1<<0); // Baisse le drapeau	
-	LPC_GPIO2->FIOPIN0 = LPC_GPIO2->FIOPIN0 & (0<<2);//Mise à 0 de P2.4
+	LPC_GPIO3->FIOPIN3 = LPC_GPIO3->FIOPIN3 & (0<<2);//Mise à 0 de P2.4
 	LPC_TIM1->TCR = 0; // Arret Timer 1
 }
 
@@ -151,10 +157,8 @@ void tache2(void const * argument)
 
 void tache3(void const * argument)
 {
-	/*
-	int Yrecep, Xrecep;
-	int *ptr;*/
 	char tab[2];
+	char message[15] ;
 	
 	while (1)
 	{
@@ -170,8 +174,7 @@ void tache3(void const * argument)
 		Xrecep = -98*Xrecep + 49999;
 		if(Xrecep <= 24999) Xrecep = 24999;  //saturation
 		if(Xrecep >= 49999) Xrecep = 49999;
-		if((Xrecep<35000)&&(Xrecep>40000)) Xrecep = 37499;
-			
+		if((Xrecep<32000)&&(Xrecep>38000)) Xrecep = 37499;
 		
 		if (Yrecep>=0) osSignalSet(ID_tache1, 0x02); //mise à un EV1
 		else if (Yrecep<0) osSignalSet(ID_tache2, 0x04); //mise à un EV2
@@ -198,6 +201,9 @@ int main (void) {
 	Initialise_PWM1();
 	Interruption_TIMER0();
 	Interruption_TIMER1();
+	GLCD_Initialize() ;
+	GLCD_ClearScreen();
+	GLCD_SetFont(&GLCD_Font_16x24) ;
 
   // create 'thread' functions that start executing,
   // example: tid_name = osThreadCreate (osThread(name), NULL);
