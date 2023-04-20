@@ -177,25 +177,38 @@ void GUIThread (void const *argument) {
 void Init_UART(void); 
 void sendCommand(char cmd, char P1,char P2);
 
+char Cab[2]; 
+char recep; 
+
 
 
 int main (void) {
+
+	char Cab[2]; 
+	char recep; 
+	
+	//confifgurer ici les isr concernées pour faire la fonction callback  dans ce cas -> PORT UART
 	osKernelInitialize ();                    // initialize CMSIS-RTOS
 	LED_Initialize(); 
-
   // initialize peripherals here
 	Init_UART();
   // create 'thread' functions that start executing,
   Init_GUIThread();
-
   osKernelStart ();                         // start thread execution 
-	//sendCommand(0x03, 0,3);
+	
+
 
   osDelay(osWaitForever);
+		while (1)
+	{
+			Driver_USART6.Receive(Cab,1);
+			while(Driver_USART6.GetRxCount()<1){
+			recep=Cab[1]; }
+	}
 }
 
 
-void Init_UART(void){
+void Init_UART(void){                            //fonction d'initialisation pour UART 
 	Driver_USART6.Initialize(NULL);
 	Driver_USART6.PowerControl(ARM_POWER_FULL);
 	Driver_USART6.Control(	ARM_USART_MODE_ASYNCHRONOUS |
@@ -203,15 +216,15 @@ void Init_UART(void){
 							ARM_USART_STOP_BITS_1		|
 							ARM_USART_PARITY_NONE		|
 							ARM_USART_FLOW_CONTROL_NONE,
-							1500); //valeur qui corresponnd pour adapter le debit a la fréquence de la carte 
+							1540); //valeur qui corresponnd a un débit de 9600 bits.s 
 	Driver_USART6.Control(ARM_USART_CONTROL_TX,1);
 	Driver_USART6.Control(ARM_USART_CONTROL_RX,1);
 }
 
-void sendCommand(char cmd, char P1,char P2)
+void sendCommand(char cmd, char P1,char P2)        //Fonction pour envoyer des commandes dans le module son 
 {
 	int i=0;
-	unsigned char tab[12] ={0x7E ,0xFF, 0x06, 0x00,0x00,0x00,0x00,0x00,0x00,0xEF};/*"salut ca va?";*/// 
+	unsigned char tab[12] ={ 0x7E ,0xFF, 0x06, 0x00,0x00,0x00,0x00,0x00,0x00,0xEF};
 	short checksum=0;
 
 	tab[3] = cmd;// cmd= 0x03
@@ -221,7 +234,7 @@ void sendCommand(char cmd, char P1,char P2)
 	tab[7] = ((checksum & 0xFF00) >>8 );
 	tab[8] = checksum & 0x00FF;
 	while(Driver_USART6.GetStatus().tx_busy == 1); // attente buffer TX vide
-	Driver_USART6.Send(tab,12);
+	Driver_USART6.Send(tab,12);   
 	
 	osDelay(1000);
 	
