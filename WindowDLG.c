@@ -160,9 +160,9 @@ static void _cbDialog(WM_MESSAGE * pMsg) {
 						sendCommand(0x03, 0,2);
 			
 
-			rxData.MsgId =WM_RXDATA; 
-			rxData.Data.v = 20; 
-			 WM_SendMessage(pMsg->hWin, &rxData);
+//			rxData.MsgId =WM_RXDATA; 
+//			rxData.Data.v = 20; 
+//			 WM_SendMessage(pMsg->hWin, &rxData);
         // USER END
         break;
       case WM_NOTIFICATION_RELEASED:
@@ -183,8 +183,9 @@ static void _cbDialog(WM_MESSAGE * pMsg) {
 			case WM_RXDATA:
 			
 			hItem =WM_GetDialogItem(pMsg ->hWin,ID_TEXT_4); 
-			sprintf(buf,"%d",pMsg->Data.v );
+			sprintf(buf,"%c",pMsg->Data.v );
 			TEXT_SetText(hItem,buf);
+			
 			
 			
 				break; 

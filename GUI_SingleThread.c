@@ -14,6 +14,8 @@
 #include "Board_LED.h"                  // ::Board Support:LED
 #include "Driver_USART.h"               // ::CMSIS Driver:USART
 
+// USER START (Optionally insert additional defines)
+#define WM_RXDATA (WM_USER + 0)
 
 #ifdef RTE_CMSIS_RTOS_RTX
 extern uint32_t os_time;
@@ -140,10 +142,10 @@ static void CPU_CACHE_Enable (void) {
   /* Enable D-Cache */
   SCB_EnableDCache();
 }
- 
+	WM_HWIN hDlg; 
 void GUIThread (void const *argument) {
 
-	WM_HWIN hDlg;
+
 	
 	MPU_Config ();
 	CPU_CACHE_Enable();                       /* Enable the CPU Cache           */
@@ -178,8 +180,11 @@ void Init_UART(void);
 void sendCommand(char cmd, char P1,char P2);
 
 char Cab[2]; 
-char recep; 
+char recep;
 
+void RXThread (void const *argument);
+osThreadId ID_RXThread ;
+osThreadDef (RXThread, osPriorityNormal, 1, 0);
 
 
 int main (void) {
@@ -193,6 +198,10 @@ int main (void) {
   // initialize peripherals here
 	Init_UART();
   // create 'thread' functions that start executing,
+	//creer une tache reception UART 
+	ID_RXThread =osThreadCreate (osThread(RXThread), NULL);
+	
+	
   Init_GUIThread();
   osKernelStart ();                         // start thread execution 
 	
@@ -207,10 +216,30 @@ int main (void) {
 	}
 }
 
+void cbUART(uint32_t event){
+	if((event&ARM_USART_EVENT_RECEIVE_COMPLETE)==ARM_USART_EVENT_RECEIVE_COMPLETE)
+	{
+		osSignalSet(ID_RXThread,0x01); 
+	}
+}
+
+//
+void RXThread (void const *argument){
+	char buf; 
+	WM_MESSAGE rxData; 
+	while (1){
+		Driver_USART6.Receive(&buf, 1);  
+		osSignalWait(0x01,osWaitForever); //Attente de réception d'un caractère
+		rxData.MsgId =WM_RXDATA; 
+		rxData.Data.v = buf; 
+		WM_SendMessage(hDlg, &rxData);
+		
+	}
+}
 
 void Init_UART(void){                            //fonction d'initialisation pour UART 
-	Driver_USART6.Initialize(NULL);
-	Driver_USART6.PowerControl(ARM_POWER_FULL);
+	Driver_USART6.Initialize(cbUART);
+ 	Driver_USART6.PowerControl(ARM_POWER_FULL);
 	Driver_USART6.Control(	ARM_USART_MODE_ASYNCHRONOUS |
 							ARM_USART_DATA_BITS_8		|
 							ARM_USART_STOP_BITS_1		|
@@ -237,7 +266,8 @@ void sendCommand(char cmd, char P1,char P2)        //Fonction pour envoyer des c
 	Driver_USART6.Send(tab,12);   
 	
 	osDelay(1000);
-	
 }
+
+
 /*************************** End of file ****************************/
 
