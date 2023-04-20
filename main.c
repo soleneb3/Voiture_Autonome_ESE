@@ -61,10 +61,14 @@ void tache2(void const * argument){
 			q2_2 = tab[4];
 			q2 = (short)(q2_2<<8|q2_1);	
 			
-			//q6 = (q6&0xFE00)+(q6&01FF)*2^-9;
+			//q6 = (q6&0xFE00)+(q6&01FF)*2^-10;
 			
 			ptr = osMailAlloc(ID_bal, osWaitForever);
 			*ptr = q2;
+			osMailPut(ID_bal, ptr);
+			
+			ptr = osMailAlloc(ID_bal, osWaitForever);
+			*ptr = q6;
 			osMailPut(ID_bal, ptr);
 			
 			
@@ -75,19 +79,29 @@ void tache3(void const * argument){
 	char message[15];
 	char message2[15];
 	int i;
-	short *recep, distance;
+	short *recep, distance, angle;
+	double x, y;
 	osEvent EVretour;
 	while(1) {
 		EVretour = osMailGet(ID_bal, osWaitForever);
 		recep = EVretour.value.p;
 		distance = *recep;
 		osMailFree(ID_bal, recep);
-		osMutexWait(ID_mut_GLCD, osWaitForever);
-		sprintf(message2, " distance = %d ",distance) ; //on stocke dans message 
-		GLCD_DrawString(1,1,message2); //colonne, ligne, message
-		osMutexRelease(ID_mut_GLCD);
-		
+//		osMutexWait(ID_mut_GLCD, osWaitForever);
+//		sprintf(message2, " distance = %d ",distance) ; //on stocke dans message 
+//		GLCD_DrawString(1,1,message2); //colonne, ligne, message
+//		osMutexRelease(ID_mut_GLCD);
 		distance = (distance&0xA000) + (distance&0x3FFF)*(2^-14);
+		
+		EVretour = osMailGet(ID_bal, osWaitForever);
+		recep = EVretour.value.p;
+		angle = *recep;
+		osMailFree(ID_bal, recep);
+		
+		angle = (angle&0xFE00)+(angle&0x1FF)*2^-10;
+		
+		y = cos(angle) * distance;
+		x = sin(angle) * distance;
 		
 	}
 }
