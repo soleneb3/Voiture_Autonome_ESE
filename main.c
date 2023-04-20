@@ -194,7 +194,7 @@ void tache2(void const * argument){ //I2C
 	osEvent EVretour;
 	
 	while(1) {
-		
+		osDelay(100);
 		EVretour = osMailGet(ID_bal, osWaitForever);
 		recep = EVretour.value.p;
 		Y = *recep;
@@ -222,7 +222,8 @@ int main(void)
   HAL_Init();
 
   SystemClock_Config();
-  SystemCoreClockUpdate();
+	  SystemCoreClockUpdate();
+
 
 	LED_Initialize ();
 	Init_I2C(); 
