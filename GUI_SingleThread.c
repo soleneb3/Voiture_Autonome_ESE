@@ -1,4 +1,3 @@
-
 #ifdef _RTE_
 #include "RTE_Components.h"             // Component selection
 #endif
