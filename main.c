@@ -125,10 +125,6 @@ void tache1(void const * argument)
 	{
 		osSignalWait(0x02, osWaitForever);//mise en sommeil + attente EV1
 		
-		//moteur tourne au sens positif
-		LPC_GPIO0->FIOPIN2 |= 0x01; //mise à 1 de P0.16
-	  LPC_GPIO0->FIOPIN2 &= 0xFB; //mise à 0 de P0.18
-		
 		Choix_Vitesse(Yrecep); //Propulsion
 		Choix_Direction(Xrecep); //Direction
 		
@@ -143,12 +139,8 @@ void tache2(void const * argument)
 
 	while (1)
 	{
-		osSignalWait(0x04, osWaitForever);//mise en sommeil + attente EV2
+	 osSignalWait(0x04, osWaitForever);//mise en sommeil + attente EV2
 		
-   //moteur tourne au sens inverse
-		LPC_GPIO0->FIOPIN2 &= 0xFE; //mise à 0 de P0.16
-	  LPC_GPIO0->FIOPIN2 |= 0x04; //mise à 1 de P0.18
-
    Choix_Vitesse(-Yrecep); //Propulsion
 	 Choix_Direction(Xrecep); //Direction
 
@@ -176,9 +168,24 @@ void tache3(void const * argument)
 		if(Xrecep >= 49999) Xrecep = 49999;
 		if((Xrecep<32000)&&(Xrecep>38000)) Xrecep = 37499;
 		
-		if (Yrecep>=0) osSignalSet(ID_tache1, 0x02); //mise à un EV1
-		else if (Yrecep<0) osSignalSet(ID_tache2, 0x04); //mise à un EV2
-		
+    if (Yrecep>300)
+		{
+			LPC_GPIO0->FIOPIN2 |= 0x01; //mise à 1 de P0.16
+			LPC_GPIO0->FIOPIN2 &= (~0x04); //mise à 0 de P0.18
+			osSignalSet(ID_tache1, 0x02); //mise à un EV1
+		}
+		else if (Yrecep<-300) 
+		{
+			LPC_GPIO0->FIOPIN2 &= (~0x01); //mise à 0 de P0.16
+			LPC_GPIO0->FIOPIN2 |= 0x04; //mise à 1 de P0.18
+			osSignalSet(ID_tache2, 0x04); //mise à un EV2
+		}
+		else 
+		{
+			Choix_Vitesse(0);
+			LPC_GPIO0->FIOPIN2 &= (~0x01); //mise à 0 de P0.16
+			LPC_GPIO0->FIOPIN2 &= (~0x04); //mise à 0 de P0.18
+		}
 	}
 }
 
