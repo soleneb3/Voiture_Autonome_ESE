@@ -105,52 +105,30 @@ static void Error_Handler(void);
 extern ARM_DRIVER_USART Driver_USART2;
 void sendCommand(char cmd, char P1,char P2)
 {
-
-	unsigned char tab[10] = {0x7E ,0xFF, 0x06, 0x00,0x00,0x00,0x00,0x00,0x00,0xEF};
-	short checksum=0;
-	
-	tab[3] = cmd;
-	tab[5] = P1;
-	tab[6]= P2;
-	checksum = 0-(tab[1]+tab[2]+tab[3]+tab[4]+tab[5]+tab[6]);
-	tab[7] = ((checksum & 0xFF00) >>8 );
-	tab[8] = checksum & 0x00FF;
-//	LED_On (3);
-//  osDelay(500);
-//	LED_Off (3);
-//  osDelay(500);
-//	LED_On (3);
-//  osDelay(500);
-//	LED_Off (3);
-//  osDelay(500);
-//	LED_On (3);
-//  osDelay(500);
-//	LED_Off (3);
-//  osDelay(500);
-//	LED_On (3);
-//  osDelay(500);
-//	LED_Off (3);
-//  osDelay(500);
-//	LED_On (3);
-//  osDelay(500);
-//	LED_Off (3);
-//  osDelay(500);
+	// Format d'une série de char attendue par le DFP Player : 
+	// $S VER Len CMD Feedback para1 para2 checksum $O
+	// site expliquant plus en détail : https://wiki.dfrobot.com/DFPlayer_Mini_SKU_DFR0299
+	unsigned char message[10] = {0x7E ,0xFF, 0x06, cmd,0x00,P1,P2,0x00,0x00,0xEF}; // Déclaration tableau contenant les 10 octets qu'on envoie au DFP Player
+	short checksum=0; // cjecksum déclaré sur 2 octets
+	// formule de calcule du checksum = 0-( VER + Len + CMD + Feedback + para1 + para2 )
+	checksum = 0-(tab[1]+tab[2]+tab[3]+tab[4]+tab[5]+tab[6]); // calcul du checksum
+	tab[7] = ((checksum & 0xFF00) >>8 ); // HighByte checksum
+	tab[8] = checksum & 0x00FF; // LowByte Checksum
 	while(Driver_USART2.GetStatus().tx_busy == 1); // attente buffer TX vide
-	Driver_USART2.Send(tab,10);
-	osDelay(1000);
-	
+	Driver_USART2.Send(tab,10); // envoi du Message	
 }
 
 void chooseSoundFromFile(char file, char sound)
 {
+	// Permet d'accéder à un fichier audio dans un dossier particulier.
 	sendCommand(0x0F,file,sound); // ne fonctionne pas ATM
 	
 }
 
 void chooseSound(char sound)
 {
+	// Joue le son n°sound sur la carte SD
 	sendCommand(0x03,0x00,sound);
-
 }
 
 
@@ -166,19 +144,19 @@ void Init_UART(void){
 							ARM_USART_STOP_BITS_1		|
 							ARM_USART_PARITY_NONE		|
 							ARM_USART_FLOW_CONTROL_NONE,
-							9600);
+							9600); // Grove RFID Reader & DFP Player fonctionnent à  9600 bauds
 	Driver_USART2.Control(ARM_USART_CONTROL_TX,1);
 	Driver_USART2.Control(ARM_USART_CONTROL_RX,1);
 }
 
-//void const HAL_USART_T2ProcessCpltCallback
+void const HAL_USART_T2ProcessCpltCallback
 
 
 int main(void)
 {
-	uint8_t tab[13];
-	uint8_t soluce[13] = {0x30,0x38,0x30,0x30,0x38,0x43,0x32,0x33,0x45,0x39,0x34,0x45,0x03};
-	char i=0,j=0,error=0;
+	uint8_t recepton[13]; // tableau qui recevra le message du RFID Reader
+	uint8_t soluce[13] = {0x30,0x38,0x30,0x30,0x38,0x43,0x32,0x33,0x45,0x39,0x34,0x45,0x03}; // Valeur du badge RFID censé ouvrir la voiture
+	char i=0,j=0;
 	
   /* STM32F4xx HAL library initialization:
        - Configure the Flash prefetch, Flash preread and Buffer caches
@@ -218,42 +196,35 @@ int main(void)
 	Init_UART();
 		
 	//init ampli///
-	
-	
-	/*sendCommand(0x09,0x00,0x02); // set SD(data 2 = 1 pour TF) comme Source des fichiers */
-//	osDelay(300);
-	/* sendCommand(0x10,0x01,0x01); // set Volume Open (data1 =1) et volume ) 15/31 (data 2 =1)*/
-	
-
-	LED_On (3);
-	LED_On (1);		
+	Led_On(1);
+	Led_On(3);
+	sendCommand(0x09,0x00,0x02); // set SD(data 2 = 1 pour TF) comme Source des fichiers */
+	osDelay(300); // le fabricant reccomande une tempo après l'envoi de l'instruction précédente
+	sendCommand(0x10,0x01,0x01); // set Volume Open (data1 =1) et volume ) 15/31 (data 2 =1)*/		
 
 	while (1)
   {
 
 		
-		Driver_USART2.Receive(tab,1);
-		while(Driver_USART2.GetRxCount()<1);
+		Driver_USART2.Receive(reception,1); // Scrutation sur RX
+		while(Driver_USART2.GetRxCount()<1);// Si au moins 1 octet détecté
+
+		Driver_USART2.Receive(reception,13);
+		while(Driver_USART2.GetRxCount()<13);// on attend qu'il y en ai 13 ( longueur de data stocké dans le badge )
 		
-		Driver_USART2.Receive(tab,13);
-		while(Driver_USART2.GetRxCount()<13);
-		
-		
-		LED_Off(1);
-		
-		error =0;
 		for (i=0;i<13;i++)
 		{
-			if (tab[i] != soluce[i])
+			if reception[i] != soluce[i]) // on compare 1 à 1 les octets reçus et les octets désirés
 			{
+				// L'un des octets ne correspond pas.
 				LED_Off (1); //////////////////////MESSAGE D'ERREUR////////////////////////////////
-				i=13;
+				i=13; // on sort de la boucle for
 			}
-			if(i==12)
+			if(i==12) // si i atteint la valeur de 12 alors tout les octets précédents étaient correctes
 			{
 				sendCommand(0x03,0x00,0x04); //////////////////////OUVRIR LA PORTE ////////////////////////////////
-				LED_Off(1);
-				for(j=0;j<13;j++)
+				LED_Off(3);
+				for(j=0;j<13;j++) // remise à 0 du tableau de réception
 				{
 					tab[j]=0;
 				}
